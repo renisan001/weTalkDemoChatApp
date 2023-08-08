@@ -85,7 +85,7 @@ class _UploadStoryScreenState extends State<UploadStoryScreen> {
                                 .width *
                                 0.8,
                             child: const Text(
-                              'Video Trim',
+                              'Image',
                               style: TextStyle(
                                   color: Colors
                                       .white,

@@ -11,11 +11,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:story_view/controller/story_controller.dart';
+import 'package:story_view/utils.dart';
+import 'package:story_view/widgets/story_view.dart';
 import 'package:uuid/uuid.dart';
 import 'package:we_talk/methods.dart';
 import 'package:we_talk/screens/chatroom_screen.dart';
 import 'package:we_talk/screens/login_screen.dart';
 import 'package:we_talk/screens/profile_screen.dart';
+import 'package:we_talk/screens/story_more_options_screen.dart';
 import 'package:we_talk/screens/upload_story_screen.dart';
 import '../notification_service.dart';
 
@@ -67,11 +71,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   var menuItems = ['Setting'];
   int index = 0;
   ImagePicker imagePicker = ImagePicker();
-  File? imageFile;
+  File? mediaFile;
   String? myProfile;
+  final controller = StoryController();
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>?> storyList = [];
-  var displayStoryList = [];
+  // Map<String, List<Map<String, dynamic>>> groupedStoryData = {};
+  List<Map<String,dynamic>> groupedStoryData = [];
 
 
   @override
@@ -319,7 +325,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future getUserList() async {
     await fireStore.collection('user').get().then(
       (value) {
-        //userList.clear();
+        userList.clear();
         for (var element in value.docs) {
           userList.add(element.data());
         }
@@ -931,8 +937,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   async {
 
     await fireStore.collection('stories').orderBy('createdTime', descending: true).get().then((value) {
-      for (var element in value.docs) {
-        // debugPrint('this is data => ${element.data()}');
+      debugPrint('this is data => ${value.docs.length}');
+      storyList.clear();
+      for (var element in value.docs)  {
+        debugPrint('this is data => ${element.data()}');
         var stamp = element.data()['createdTime'];
         DateTime date = stamp.toDate();
         Duration difference = DateTime.now().difference(date);
@@ -940,36 +948,67 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         {
           storyList.add(element);
         }
-      }
-
-      debugPrint('this is storyList one => ${storyList.isEmpty ? 'empty' :storyList[0]!.data()}');
-      debugPrint('this is userList one => ${userList.isEmpty ? 'empty' :userList[0]}');
-
-      for (var story in storyList) {
-        // debugPrint('this is story  => ${story!.data()}');
-        for (var user in userList) {
-          if(story!.data()['userId'] == user['uid'])
+        else
           {
-
-            displayStoryList.add({
-              'uid':user['uid'],
-              'name':user['name'],
-              'profile':user['profile'],
-              'text':user['text'],
-              'time':story.data()['createdTime'],
-              'type':story.data()['type'],
-              'refId':story.reference.id,
-            });
+            debugPrint('this is deleted ${element.data()}');
+            fireStore.collection('stories').doc(element.reference.id).delete();
           }
+      }
+      debugPrint('this is storyList one => ${storyList.isEmpty ? 'empty' :storyList[0]!.data()}');
+      debugPrint('this is storyList one => ${storyList.isEmpty ? 'empty' :storyList.length}');
+      debugPrint('this is userList one => ${userList.isEmpty ? 'empty' :userList}');
+
+
+      groupedStoryData.clear();
+      for (var user in userList) {
+        for (var story in storyList) {
+          if(user['uid'] == story!['userId'])
+            {
+              groupedStoryData.add({
+                'userId': user['uid'],
+                'profile': user['profile'],
+                'name': user['name'],
+                'createdTime': story['createdTime'],
+                'text': story['text'],
+                'viewerList': story['viewerList'],
+                'type': story['type'],
+                'story': story['story'],
+              });
+            }
         }
       }
-      debugPrint('this is dis one => ${displayStoryList.isEmpty ? 'empty' : displayStoryList}');
+
+      // debugPrint('this is userList one => ${userList.isEmpty ? 'empty' :userList[0]}');
+      debugPrint('this is userList one => ${userList.isEmpty ? 'empty' :userList.length}');
+      debugPrint('this is groupedStoryData one => ${groupedStoryData.isEmpty ? 'empty' : groupedStoryData.length}');
+      debugPrint('this is storyList one => ${storyList.isEmpty ? 'empty' :storyList.length}');
+      debugPrint('this is groupedStoryData => ${groupedStoryData.isEmpty ? 'empty' : groupedStoryData}');
+
     });
   }
 
   storiesWidget()
    {
      getStoryList();
+
+     bool isMyStoryPresent = false;
+     List<StoryItem> storyItems = [];
+     var alreadyDisplayUser = [];
+
+     for (var story in groupedStoryData) {
+       if(story['userId'] == auth.currentUser!.uid)
+           {
+             isMyStoryPresent = true;
+             storyItems.add(story['type'] == 'img' ?
+             StoryItem.pageImage(controller: controller,url: story['story'],
+                 caption: story['text'] == 'none' ? null : story['text'])
+                 : StoryItem.pageVideo(story['story'],
+               caption: story['text'] == 'none' ? null : story['text'], controller: controller,
+             ),);
+
+           }
+     }
+
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
@@ -991,65 +1030,164 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Stories comming soon...',style: TextStyle(fontSize: 40)),
-              SizedBox(width: double.infinity,),
-              // InkWell(
-              //     onTap: (){
-              //       showModalBottomSheet(
-              //           context: context,
-              //           builder: (context) {
-              //             return Padding(
-              //               padding: const EdgeInsets.symmetric(
-              //                   horizontal: 15, vertical: 15),
-              //               child: Column(
-              //                 mainAxisSize: MainAxisSize.min,
-              //                 children: [
-              //                   InkWell(
-              //                     onTap: () {
-              //                       _getVideoFromGallery().then((value) {
-              //                         Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  imageFile,isImage: false),)).then((value) {
-              //                           Navigator.pop(context);
-              //                         });
-              //                       });
-              //                     },
-              //                     child: Row(
-              //                       //mainAxisSize: MainAxisSize.min,
-              //                       children: const [
-              //                         Icon(Icons.video_collection, size: 30),
-              //                         SizedBox(width: 15),
-              //                         Text('Video')
-              //                       ],
-              //                     ),
-              //                   ),
-              //                   const Padding(
-              //                     padding: EdgeInsets.symmetric(vertical: 5),
-              //                     child: Divider(),
-              //                   ),
-              //                   InkWell(
-              //                     onTap: () {
-              //                       _getFromGallery().then((value) {
-              //                         Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  imageFile,isImage: true),)).then((value) {
-              //                           Navigator.pop(context);
-              //                         });
-              //                       });
-              //                     },
-              //                     child: Row(
-              //                       //mainAxisSize: MainAxisSize.min,
-              //                       children: const [
-              //                         Icon(Icons.image, size: 30),
-              //                         SizedBox(width: 15),
-              //                         Text('Image')
-              //                       ],
-              //                     ),
-              //                   ),
-              //                 ],
-              //               ),
-              //             );
-              //           });
-              //     },
-              //     child: storyItem(
-              //         url: myProfile,
-              //         title: 'My status',subtitle: 'Tap to add status update',isPlusIconVisible: true)),
+              // Text(groupedStoryData.toString(),style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: double.infinity,),
+              const SizedBox(height: 10,),
+              InkWell(
+                  onTap: (){
+                    if(isMyStoryPresent)
+                      {
+                        Navigator.of(context).push(MaterialPageRoute(builder: (context) {
+                          // debugPrint('in story view navigate');
+                          return StoryView(
+                            controller: controller, // pass controller here too
+                            repeat: false, // should the stories be slid forever
+                            //onStoryShow: (s) {notifyServer(s)},
+                            onComplete: () {
+                              Navigator.pop(context);
+                            },
+                            onVerticalSwipeComplete: (direction) {
+                              if (direction == Direction.down) {
+                                Navigator.pop(context);
+                              }
+                            }, storyItems: storyItems, // To disable vertical swipe gestures, ignore this parameter.
+                            // Preferably for inline story view.
+                          );
+                        } ,));
+                      }
+                    else
+                      {
+                        showModalBottomSheet(
+                            context: context,
+                            builder: (context) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 15, vertical: 15),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(
+                                      onTap: () {
+                                        _getVideoFromGallery().then((value) {
+                                          if(mediaFile != null)
+                                          {
+
+                                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  mediaFile,isImage: false),)).then((value) {
+                                              Navigator.pop(context);
+                                            });
+                                          }
+                                        });
+                                      },
+                                      child: Row(
+                                        //mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.video_collection, size: 30),
+                                          SizedBox(width: 15),
+                                          Text('Video')
+                                        ],
+                                      ),
+                                    ),
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 5),
+                                      child: Divider(),
+                                    ),
+                                    InkWell(
+                                      onTap: () {
+                                        _getFromGallery().then((value) {
+                                          if(mediaFile != null)
+                                          {
+                                            debugPrint('this is true for image pick');
+                                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  mediaFile,isImage: true),)).then((value) {
+                                              Navigator.pop(context);
+                                            });
+                                          }
+                                        });
+                                      },
+                                      child: Row(
+                                        //mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.image, size: 30),
+                                          SizedBox(width: 15),
+                                          Text('Image')
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            });
+                      }
+                  },
+                  child: storyItem(
+                      url: myProfile,
+                      title: 'My status',subtitle: 'Tap to add status update',
+                      isPlusIconVisible: true,
+                      isMyStoryPresent: isMyStoryPresent,
+                      me: true
+                  )),
+              ...groupedStoryData.map((story) {
+                var stamp = story['createdTime'];
+                DateTime date = stamp.toDate();
+                List<StoryItem> storyItemsNew = [];
+
+                for (var story in groupedStoryData) {
+                  if(story['userId'] != auth.currentUser!.uid)
+                  {
+                    storyItemsNew.add(story['type'] == 'img' ?
+                    StoryItem.pageImage(controller: controller,url: story['story'],
+                        caption: story['text'] == 'none' ? null : story['text'])
+                        : StoryItem.pageVideo(story['story'],
+                      caption: story['text'] == 'none' ? null : story['text'], controller: controller,
+                    ),);
+
+                  }
+                }
+                if(!alreadyDisplayUser.contains(story['userId']))
+                {
+                  alreadyDisplayUser.add(story['userId']);
+                }
+                else
+                {
+                  return Container();
+                }
+                if(story['userId'] == auth.currentUser!.uid)
+                  {
+                    return Container();
+                  }
+                return Column(
+                  children: [
+                    const Divider(),
+                    InkWell(
+                      onTap: (){
+                        Navigator.of(context).push(MaterialPageRoute(builder: (context) {
+                          // debugPrint('in story view navigate');
+                          return StoryView(
+                            controller: controller, // pass controller here too
+                            repeat: false, // should the stories be slid forever
+                            //onStoryShow: (s) {notifyServer(s)},
+                            onComplete: () {
+                              Navigator.pop(context);
+                            },
+                            onVerticalSwipeComplete: (direction) {
+                              if (direction == Direction.down) {
+                                Navigator.pop(context);
+                              }
+                            }, storyItems: storyItemsNew, // To disable vertical swipe gestures, ignore this parameter.
+                            // Preferably for inline story view.
+                          );
+                        }));
+                      },
+                      child: storyItem(
+                        title: story['name'],
+                        subtitle: formatDateTime(date),
+                        url: story['story'],
+                        isMyStoryPresent: true,
+                      ),
+                    ),
+
+                  ],
+                );
+              }).toList()
               // Row(
               //   children: const [
               //     Padding(
@@ -1098,13 +1236,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget storyItem({
   title,
   subtitle,
-  isPlusIconVisible,
-  url
+  isPlusIconVisible = false,
+  url,
+  isMyStoryPresent = false,
+  me = false
 })
   {
     return Row(children: [
       Stack(
+        alignment: Alignment.center,
         children: [
+           CircleAvatar(radius: 32,
+          backgroundColor: isMyStoryPresent ? Colors.deepPurple : Colors.transparent,),
+          // const CircleAvatar(radius: 34,
+          //   backgroundColor: Colors.white,
+          // ),
           InkWell(
             onTap: (){},
             child: url == 'none' ? const Icon(Icons.account_circle, size: 60) : ClipRRect(
@@ -1119,8 +1265,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   placeholder: (context,
                       url) =>
                   const Icon(
-                      Icons
-                          .account_circle,
+                      Icons.account_circle,
                       size: 60),
                   errorWidget: (context, url,
                       error) {
@@ -1130,7 +1275,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
           ),
-          isPlusIconVisible ? const Positioned.fill(
+          isPlusIconVisible && !isMyStoryPresent ? const Positioned.fill(
             child: Align(alignment: Alignment.bottomRight,
          child: Padding(
            padding: EdgeInsets.only(top: 5,left: 5),
@@ -1147,7 +1292,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
            ),
          ),
             ),
-          ) : Container()
+          ) : Container(),
+
         ],
       ),
       const SizedBox(
@@ -1178,6 +1324,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         ],
       ),
+      const Spacer(),
+       Visibility(
+         visible: me && isMyStoryPresent,
+         child: InkWell(
+            onTap: (){
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const StoryMoreOptionsScreen(),));
+            },
+            child: const Icon(Icons.more_horiz)),
+       )
     ],);
   }
 
@@ -1193,7 +1348,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           (value) async {
         if (value != null) {
           debugPrint('printing piked img if not null ==> $value');
-            imageFile = File(value.path);
+            mediaFile = File(value.path);
         }
       },
     );
@@ -1205,12 +1360,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         .pickVideo(
       source: ImageSource.gallery,
       maxDuration: const Duration(seconds: 30)
-    )
-        .then(
+    ).then(
           (value) async {
         if (value != null) {
           debugPrint('printing piked img if not null ==> $value');
-          imageFile = File(value.path);
+          mediaFile = File(value.path);
         }
       },
     );
