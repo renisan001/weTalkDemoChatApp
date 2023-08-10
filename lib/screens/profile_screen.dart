@@ -217,7 +217,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const Divider(indent: 55),
               listIcons(leadIcon: Icons.call,title: 'Phone',description: '+91 ${ user!['phoneNumber'].toString().substring(0,5)} ${ user!['phoneNumber'].toString().substring(5,10)}'),
-
             ],
           ),
         ),

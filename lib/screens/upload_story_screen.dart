@@ -2,9 +2,8 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:video_trimmer/video_trimmer.dart';
 
 import '../methods.dart';
@@ -23,6 +22,8 @@ class _UploadStoryScreenState extends State<UploadStoryScreen> {
 
   FirebaseAuth auth = FirebaseAuth.instance;
   FirebaseFirestore fireStore = FirebaseFirestore.instance;
+  bool ignore = false;
+
 
   TextEditingController messageText = TextEditingController();
 
@@ -132,10 +133,16 @@ class _UploadStoryScreenState extends State<UploadStoryScreen> {
               width: 15,
             ),
             InkWell(
-                onTap:  () async {
+                onTap: ignore ? null: () async {
                   debugPrint('in click of send button');
+                 setState(() {
+                   ignore = true;
+                 });
+                  EasyLoading.show();
+                  debugPrint('this is ignore flag -> $ignore');
                     // onMessageSend(context, messageText.text);
                      await uploadDoc(documentPath: widget.document!.path,isImage: true,text: messageText.text);
+                  EasyLoading.dismiss();
                      Navigator.pop(context);
                 },
                 child: const Icon(
@@ -159,6 +166,8 @@ class TrimmerView extends StatefulWidget {
 
 class TrimmerViewState extends State<TrimmerView> {
   final Trimmer _trimmer = Trimmer();
+
+  bool ignore = false;
 
   double _startValue = 0.0;
   double _endValue = 0.0;
@@ -298,6 +307,7 @@ class TrimmerViewState extends State<TrimmerView> {
   }
 
   Widget bottomTextField(BuildContext context) {
+
     return Container(
         height: 60,
         padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -328,12 +338,13 @@ class TrimmerViewState extends State<TrimmerView> {
             InkWell(
                 onTap: _progressVisibility
                     ? null
-                    :() async {
+                    : ignore ? null: () async {
                   debugPrint('in click of send button');
                     setState(() {
+                      ignore = true;
                       _progressVisibility = true;
                     });
-
+                    EasyLoading.show();
                     await _trimmer.saveTrimmedVideo(startValue: _startValue, endValue: _endValue,onSave:(outputPath) async {
                       debugPrint('in onn save of trim video => $outputPath');
                       await uploadDoc(documentPath: outputPath,isImage: false,text: messageText.text);
@@ -342,8 +353,8 @@ class TrimmerViewState extends State<TrimmerView> {
                         Navigator.pop(context);
                       });
                     },);
-                    debugPrint('code endign...');
-
+                    debugPrint('code ending...');
+                  EasyLoading.dismiss();
                 },
                 child: const Icon(
                   Icons.send,

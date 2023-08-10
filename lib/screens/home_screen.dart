@@ -219,10 +219,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                          logout().then(
                                                (value)  {
                                              debugPrint('logout success');
-                                             Navigator.of(context)
-                                                 .pushReplacement(MaterialPageRoute(
-                                               builder: (context) => const LoginScreen(),
-                                             ));
+                                             Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) =>
+                                                 const LoginScreen()), (Route<dynamic> route) => false);
                                            },
                                          );
                                        },
@@ -933,9 +931,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  getStoryList()
+  Future getStoryList()
   async {
-
     await fireStore.collection('stories').orderBy('createdTime', descending: true).get().then((value) {
       debugPrint('this is data => ${value.docs.length}');
       storyList.clear();
@@ -973,6 +970,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 'viewerList': story['viewerList'],
                 'type': story['type'],
                 'story': story['story'],
+                'refId': story.reference.id
               });
             }
         }
@@ -990,11 +988,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   storiesWidget()
    {
      getStoryList();
-
      bool isMyStoryPresent = false;
      List<StoryItem> storyItems = [];
      var alreadyDisplayUser = [];
-
+     // Map<String, dynamic> myStory = {};
+     DateTime myDate = DateTime.now();
+     List<Map<String,List<StoryItem?>>> storyItemsNew = [];
+     Map<String,List<StoryItem?>> myStoryItems = {};
      for (var story in groupedStoryData) {
        if(story['userId'] == auth.currentUser!.uid)
            {
@@ -1005,9 +1005,66 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                  : StoryItem.pageVideo(story['story'],
                caption: story['text'] == 'none' ? null : story['text'], controller: controller,
              ),);
-
+             var stamp = story['createdTime'];
+             myDate = stamp.toDate();
            }
      }
+
+     for (var story in groupedStoryData) {
+       debugPrint('flag -> $story');
+       if(story['userId'] != auth.currentUser!.uid)
+       {
+
+         bool isKeyPresent = false;
+         for (var item in storyItemsNew) {
+           if (item.containsKey(story['userId'])) {
+             storyItemsNew[storyItemsNew.indexOf(item)][story['userId']]!.add(story['type'] == 'img' ?
+             StoryItem.pageImage(controller: controller,url: story['story'],
+                 caption: story['text'] == 'none' ? null : story['text'])
+                 : StoryItem.pageVideo(story['story'],
+               caption: story['text'] == 'none' ? null : story['text'], controller: controller,));
+             isKeyPresent = true;
+             break;
+           }
+         }
+
+         if (!isKeyPresent) {
+           storyItemsNew.add({story['userId'] : [story['type'] == 'img' ?
+           StoryItem.pageImage(controller: controller,url: story['story'],
+               caption: story['text'] == 'none' ? null : story['text'])
+               : StoryItem.pageVideo(story['story'],
+             caption: story['text'] == 'none' ? null : story['text'], controller: controller,)]});
+         }
+
+       }
+       else
+         {
+           debugPrint('flag');
+           if(myStoryItems.containsKey(story['userId']))
+           {
+             debugPrint('flag 0');
+             myStoryItems[story['userId']]!.add(
+                 story['type'] == 'img' ?
+                 StoryItem.pageImage(controller: controller,url: story['story'],
+                     caption: story['text'] == 'none' ? null : story['text'])
+                     : StoryItem.pageVideo(story['story'],
+                   caption: story['text'] == 'none' ? null : story['text'], controller: controller,));
+           }
+           else
+           {
+             debugPrint('flag 1');
+             myStoryItems = {
+               story['userId'] : [story['type'] == 'img' ?
+               StoryItem.pageImage(controller: controller,url: story['story'],
+                   caption: story['text'] == 'none' ? null : story['text'])
+                   : StoryItem.pageVideo(story['story'],
+                 caption: story['text'] == 'none' ? null : story['text'], controller: controller,)]
+             };
+           }
+         }
+     }
+     debugPrint('storyItemsNew --> $storyItemsNew');
+     debugPrint('storyItemsNew --> $myStoryItems');
 
     return Expanded(
       child: Container(
@@ -1050,7 +1107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               if (direction == Direction.down) {
                                 Navigator.pop(context);
                               }
-                            }, storyItems: storyItems, // To disable vertical swipe gestures, ignore this parameter.
+                            }, storyItems: myStoryItems[auth.currentUser!.uid]!, // To disable vertical swipe gestures, ignore this parameter.
                             // Preferably for inline story view.
                           );
                         } ,));
@@ -1071,8 +1128,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         _getVideoFromGallery().then((value) {
                                           if(mediaFile != null)
                                           {
-
                                             Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  mediaFile,isImage: false),)).then((value) {
+                                              getStoryList().then((value) {
+                                                setState(() {
+
+                                                });
+                                              });
                                               Navigator.pop(context);
                                             });
                                           }
@@ -1098,6 +1159,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           {
                                             debugPrint('this is true for image pick');
                                             Navigator.of(context).push(MaterialPageRoute(builder: (context) => UploadStoryScreen(document:  mediaFile,isImage: true),)).then((value) {
+                                              getStoryList().then((value) {
+                                                setState(() {
+
+                                                });
+                                              });
                                               Navigator.pop(context);
                                             });
                                           }
@@ -1120,7 +1186,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   },
                   child: storyItem(
                       url: myProfile,
-                      title: 'My status',subtitle: 'Tap to add status update',
+                      title:  'My status' ,
+                      subtitle: isMyStoryPresent ? formatDateTime(myDate) :'Tap to add status update'  ,
                       isPlusIconVisible: true,
                       isMyStoryPresent: isMyStoryPresent,
                       me: true
@@ -1128,20 +1195,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ...groupedStoryData.map((story) {
                 var stamp = story['createdTime'];
                 DateTime date = stamp.toDate();
-                List<StoryItem> storyItemsNew = [];
-
-                for (var story in groupedStoryData) {
-                  if(story['userId'] != auth.currentUser!.uid)
-                  {
-                    storyItemsNew.add(story['type'] == 'img' ?
-                    StoryItem.pageImage(controller: controller,url: story['story'],
-                        caption: story['text'] == 'none' ? null : story['text'])
-                        : StoryItem.pageVideo(story['story'],
-                      caption: story['text'] == 'none' ? null : story['text'], controller: controller,
-                    ),);
-
+                List<StoryItem?>? storyItems;
+                for (var item in storyItemsNew) {
+                  if (item.containsKey(story['userId'])) {
+                    // print(item[story['userId']]);
+                    // isKeyPresent = true;
+                    storyItems = item[story['userId']]!;
+                    break;
                   }
                 }
+
                 if(!alreadyDisplayUser.contains(story['userId']))
                 {
                   alreadyDisplayUser.add(story['userId']);
@@ -1159,6 +1222,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     const Divider(),
                     InkWell(
                       onTap: (){
+                        fireStore.collection('stories').doc(story['refId']).update(
+                            {'viewerList': FieldValue.arrayUnion([auth.currentUser!.uid])}
+                        );
                         Navigator.of(context).push(MaterialPageRoute(builder: (context) {
                           // debugPrint('in story view navigate');
                           return StoryView(
@@ -1172,7 +1238,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               if (direction == Direction.down) {
                                 Navigator.pop(context);
                               }
-                            }, storyItems: storyItemsNew, // To disable vertical swipe gestures, ignore this parameter.
+                            }, storyItems:storyItems!, // To disable vertical swipe gestures, ignore this parameter.
                             // Preferably for inline story view.
                           );
                         }));
@@ -1184,7 +1250,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         isMyStoryPresent: true,
                       ),
                     ),
-
                   ],
                 );
               }).toList()
@@ -1246,32 +1311,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       Stack(
         alignment: Alignment.center,
         children: [
-           CircleAvatar(radius: 32,
+           CircleAvatar(radius: 33,
           backgroundColor: isMyStoryPresent ? Colors.deepPurple : Colors.transparent,),
-          // const CircleAvatar(radius: 34,
-          //   backgroundColor: Colors.white,
-          // ),
+          const CircleAvatar(radius: 30,
+            backgroundColor: Colors.white,
+          ),
           InkWell(
             onTap: (){},
             child: url == 'none' ? const Icon(Icons.account_circle, size: 60) : ClipRRect(
               borderRadius:
               BorderRadius.circular(30),
-              child: CachedNetworkImage(
-                  height: 60,
-                  width: 60,
-                  fit: BoxFit.cover,
-                  imageUrl:
-                  '$url',
-                  placeholder: (context,
-                      url) =>
-                  const Icon(
-                      Icons.account_circle,
-                      size: 60),
-                  errorWidget: (context, url,
-                      error) {
-                    debugPrint(error.toString());
-                    return const Icon(Icons.error);
-                  }
+              child: Container(
+                color: Colors.white,
+                child: CachedNetworkImage(
+                    height: 60,
+                    width: 60,
+                    fit: BoxFit.cover,
+                    imageUrl:
+                    '$url',
+                    placeholder: (context,
+                        url) => const Center(child: CircularProgressIndicator()),
+                    // const Icon(
+                    //     Icons.account_circle,
+                    //     size: 60),
+                    errorWidget: (context, url,
+                        error) {
+                      debugPrint(error.toString());
+                      return const Icon(Icons.error);
+                    }
+                ),
               ),
             ),
           ),
@@ -1329,7 +1397,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
          visible: me && isMyStoryPresent,
          child: InkWell(
             onTap: (){
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const StoryMoreOptionsScreen(),));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const StoryMoreOptionsScreen(),)).then((value) {
+                getStoryList();
+                setState(() {
+
+                });
+              });
             },
             child: const Icon(Icons.more_horiz)),
        )
